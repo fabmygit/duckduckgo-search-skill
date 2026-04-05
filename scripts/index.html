@@ -8,90 +8,51 @@
             try {
                 const jsonData = JSON.parse(data);
                 const query = jsonData.query;
+                const lang = jsonData.lang || 'en';
 
 ```
             if (!query) {
                 return JSON.stringify({ error: "No query provided." });
             }
 
-            const results = await searchDuckDuckGo(query);
+            // Timeout after 8 seconds
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+
+            const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1&origin=*`;
+
+            const response = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeout);
+
+            const d = await response.json();
+
+            const results = [];
+
+            if (d.Answer) {
+                results.push({ title: "Answer", snippet: d.Answer, url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}` });
+            }
+            if (d.AbstractText) {
+                results.push({ title: d.Heading || query, snippet: d.AbstractText, url: d.AbstractURL });
+            }
+            for (const t of (d.RelatedTopics || []).slice(0, 3)) {
+                if (t.Text && t.FirstURL) {
+                    results.push({ title: t.Text.substring(0, 60), snippet: t.Text, url: t.FirstURL });
+                }
+            }
+
+            if (results.length === 0) {
+                return JSON.stringify({ result: `No results found for "${query}". Try a different search term.` });
+            }
+
             return JSON.stringify({ result: results });
 
         } catch (e) {
-            console.error(e);
+            if (e.name === 'AbortError') {
+                return JSON.stringify({ error: "Search timed out. Please try again." });
+            }
             return JSON.stringify({ error: `Search failed: ${e.message}` });
         }
     };
-
-    async function searchDuckDuckGo(query) {
-        const results = [];
-
-        // DuckDuckGo Lite - lightweight HTML version, works in WebView
-        const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15'
-            }
-        });
-
-        const html = await response.text();
-
-        // Parse results from DuckDuckGo Lite HTML
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-
-        // DDG Lite uses <a class="result-link"> for titles/URLs
-        // and <td class="result-snippet"> for snippets
-        const links = doc.querySelectorAll('a.result-link');
-        const snippets = doc.querySelectorAll('.result-snippet');
-
-        for (let i = 0; i < Math.min(links.length, 5); i++) {
-            const link = links[i];
-            const snippet = snippets[i];
-            if (link && link.href && link.textContent) {
-                results.push({
-                    title: link.textContent.trim(),
-                    url: link.href,
-                    snippet: snippet ? snippet.textContent.trim() : ''
-                });
-            }
-        }
-
-        // Fallback: try table rows if class-based parsing fails
-        if (results.length === 0) {
-            const rows = doc.querySelectorAll('tr');
-            let lastLink = null;
-            let count = 0;
-            for (const row of rows) {
-                if (count >= 5) break;
-                const a = row.querySelector('a[href]');
-                const td = row.querySelector('td');
-                if (a && a.href.startsWith('http') && !a.href.includes('duckduckgo.com')) {
-                    lastLink = { title: a.textContent.trim(), url: a.href };
-                } else if (lastLink && td && td.textContent.trim().length > 20) {
-                    results.push({
-                        title: lastLink.title,
-                        url: lastLink.url,
-                        snippet: td.textContent.trim()
-                    });
-                    lastLink = null;
-                    count++;
-                }
-            }
-        }
-
-        if (results.length === 0) {
-            results.push({
-                title: 'No results found',
-                url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
-                snippet: `Could not retrieve results. Open DuckDuckGo directly to search for: ${query}`
-            });
-        }
-
-        return results;
-    }
 </script>
 ```
 
