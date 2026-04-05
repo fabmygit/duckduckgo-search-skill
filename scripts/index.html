@@ -8,47 +8,39 @@
             try {
                 const jsonData = JSON.parse(data);
                 const query = jsonData.query;
-                const lang = jsonData.lang || 'en';
 
 ```
             if (!query) {
                 return JSON.stringify({ error: "No query provided." });
             }
 
-            // Timeout after 8 seconds
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 8000);
+            const timeout = setTimeout(() => controller.abort(), 10000);
 
-            const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1&origin=*`;
+            // Jina.ai search - free, no key, CORS-friendly
+            const url = `https://s.jina.ai/${encodeURIComponent(query)}`;
 
-            const response = await fetch(url, { signal: controller.signal });
+            const response = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Respond-With': 'no-content'
+                }
+            });
             clearTimeout(timeout);
 
-            const d = await response.json();
+            const text = await response.text();
 
-            const results = [];
-
-            if (d.Answer) {
-                results.push({ title: "Answer", snippet: d.Answer, url: `https://duckduckgo.com/?q=${encodeURIComponent(query)}` });
-            }
-            if (d.AbstractText) {
-                results.push({ title: d.Heading || query, snippet: d.AbstractText, url: d.AbstractURL });
-            }
-            for (const t of (d.RelatedTopics || []).slice(0, 3)) {
-                if (t.Text && t.FirstURL) {
-                    results.push({ title: t.Text.substring(0, 60), snippet: t.Text, url: t.FirstURL });
-                }
+            if (!text || text.trim().length === 0) {
+                return JSON.stringify({ result: `No results found for "${query}".` });
             }
 
-            if (results.length === 0) {
-                return JSON.stringify({ result: `No results found for "${query}". Try a different search term.` });
-            }
-
-            return JSON.stringify({ result: results });
+            // Return first 1500 chars as result
+            return JSON.stringify({ result: text.substring(0, 1500) });
 
         } catch (e) {
             if (e.name === 'AbortError') {
-                return JSON.stringify({ error: "Search timed out. Please try again." });
+                return JSON.stringify({ error: "Search timed out." });
             }
             return JSON.stringify({ error: `Search failed: ${e.message}` });
         }
