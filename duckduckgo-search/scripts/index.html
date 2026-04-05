@@ -1,55 +1,78 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Edge Search</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; max-width: 800px; margin: auto; }
+        #status { color: #666; font-style: italic; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
 </head>
 <body>
+
+    <h2>AI Edge Gallery - Websuche</h2>
+    <p>Status: <span id="status">Bereit für Anfrage...</span></p>
+    <div id="output"></div>
+
     <script>
+        /**
+         * Diese Funktion wird von der AI Edge Gallery aufgerufen.
+         * Sie nutzt SearXNG über einen CORS-Proxy, um ohne API-Key zu suchen.
+         */
         window['ai_edge_gallery_get_result'] = async (data) => {
+            const statusEl = document.getElementById('status');
+            const outputEl = document.getElementById('output');
+            
             try {
                 const jsonData = JSON.parse(data);
-                const query = jsonData.query || "test";
-                // DEIN API-KEY HIER EINTRAGEN
-                const API_KEY = process.env.JINA_API_KEY; 
+                const query = jsonData.query || "Test";
+                statusEl.innerText = `Suche nach: "${query}"...`;
 
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 10000);
+                // Die von dir gefundene Instanz
+                const targetUrl = `https://s.mble.dk/search?q=${encodeURIComponent(query)}&format=json`;
+                
+                // AllOrigins Proxy, um die CORS-Sperre auf GitHub Pages zu umgehen
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
 
-                let debugInfo = `Query: ${query}\n`;
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error("Netzwerk-Antwort war nicht ok.");
 
-                try {
-                    const url = `https://s.jina.ai/${encodeURIComponent(query)}`;
-                    debugInfo += `Fetching: ${url}\n`;
-
-                    const response = await fetch(url, {
-                        signal: controller.signal,
-                        headers: { 
-                            'Accept': 'application/json',
-                            'Authorization': `Bearer ${API_KEY}` // Der Key wird hier mitgeschickt
-                        }
-                    });
-                    clearTimeout(timeout);
-
-                    debugInfo += `Status: ${response.status}\n`;
-                    debugInfo += `OK: ${response.ok}\n`;
-
-                    const text = await response.text();
-                    debugInfo += `Response length: ${text.length}\n`;
-                    debugInfo += `Preview: ${text.substring(0, 300)}`;
-
-                    return JSON.stringify({ result: debugInfo });
-
-                } catch (fetchError) {
-                    clearTimeout(timeout);
-                    debugInfo += `Fetch error type: ${fetchError.name}\n`;
-                    debugInfo += `Fetch error message: ${fetchError.message}\n`;
-                    return JSON.stringify({ result: debugInfo });
+                const wrapper = await response.json();
+                
+                // Die eigentlichen Daten liegen bei AllOrigins im Feld 'contents'
+                if (!wrapper.contents) throw new Error("Keine Inhalte vom Proxy erhalten.");
+                
+                const resultData = JSON.parse(wrapper.contents);
+                
+                if (!resultData.results || resultData.results.length === 0) {
+                    statusEl.innerText = "Abgeschlossen.";
+                    return JSON.stringify({ result: "Keine Ergebnisse gefunden." });
                 }
 
+                // Ergebnisse formatieren (Top 5)
+                const formattedResults = resultData.results.slice(0, 5).map((r, i) => {
+                    return `[${i+1}] ${r.title}\nURL: ${r.url}\nInhalt: ${r.content || 'Keine Beschreibung'}\n`;
+                }).join('\n---\n\n');
+
+                statusEl.innerText = "Ergebnisse geladen.";
+                
+                // Optional: Anzeige auf der Seite (falls du es direkt im Browser testest)
+                outputEl.innerHTML = `<h3>Ergebnisse:</h3><pre>${formattedResults}</pre>`;
+
+                return JSON.stringify({ result: formattedResults });
+
             } catch (e) {
-                return JSON.stringify({ result: `Parse error: ${e.name}: ${e.message}` });
+                console.error(e);
+                statusEl.innerText = "Fehler aufgetreten.";
+                return JSON.stringify({ result: `Fehler: ${e.message}. Hinweis: Die Such-Instanz könnte überlastet sein.` });
             }
         };
+
+        // TEST-MODUS: Falls du die Datei lokal öffnest, kannst du sie so testen:
+        // Einfach in der Browser-Konsole eingeben: 
+        // window.ai_edge_gallery_get_result('{"query":"Wer ist Angela Merkel?"}')
     </script>
 </body>
 </html>
