@@ -1,6 +1,6 @@
 ---
 name: duckduckgo-search
-description: Search the web using DuckDuckGo for current information, news, and facts. No API key required.
+description: Search the web using DuckDuckGo for current information, news, and facts. No API key required
 ---
 
 # DuckDuckGo Web Search
