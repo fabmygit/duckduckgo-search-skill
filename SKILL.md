@@ -1,39 +1,20 @@
 ---
 name: duckduckgo-search
-description: Search the web using DuckDuckGo for current information, news, and facts. No API key required
+description: Search the web for current information about any topic, person, website or event.
 ---
 
 # DuckDuckGo Web Search
 
 ## Instructions
 
-When the user asks about current events, recent news, or any topic that needs up-to-date information:
+Call the `run_js` tool with the following exact parameters:
+- script name: index.html
+- data: A JSON string with the following fields:
+  - query: String. The search query extracted from the user's request.
+  - lang: String. The 2-letter language code (e.g. "en", "de", "fr").
 
-1. Extract a short, specific search query (2-5 words) from the user's question.
-
-2. Call the `run_js` tool with the following parameters:
-   - data: A JSON string with the following field:
-     - query: String. The search query to look up on DuckDuckGo.
-
-3. The tool returns a list of results. Summarize the top results clearly.
-
-4. Always show title and URL for each result.
-
-## Output Format
-
-Search: "[query]"
-
-1. [Title] - [one sentence summary]
-   URL: [URL]
-
-2. [Title] - [one sentence summary]
-   URL: [URL]
-
-3. [Title] - [one sentence summary]
-   URL: [URL]
-
-Finish with a brief 2-3 sentence synthesis of what was found.
-
-## Notes
-- Respond in the same language the user used.
-- If results are empty, say so and answer from your own knowledge.
+**Constraints:**
+- Always call run_js — never answer from memory alone.
+- Summarize the results in 2-3 sentences.
+- Always respond in the same language as the user.
+- If no results found, say so briefly.
