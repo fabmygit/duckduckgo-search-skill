@@ -7,42 +7,42 @@
         window['ai_edge_gallery_get_result'] = async (data) => {
             try {
                 const jsonData = JSON.parse(data);
-                const query = jsonData.query;
+                const query = jsonData.query || "test";
 
 ```
-            if (!query) {
-                return JSON.stringify({ error: "No query provided." });
-            }
-
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 10000);
 
-            // Jina.ai search - free, no key, CORS-friendly
-            const url = `https://s.jina.ai/${encodeURIComponent(query)}`;
+            let debugInfo = `Query: ${query}\n`;
 
-            const response = await fetch(url, {
-                signal: controller.signal,
-                headers: {
-                    'Accept': 'application/json',
-                    'X-Respond-With': 'no-content'
-                }
-            });
-            clearTimeout(timeout);
+            try {
+                const url = `https://s.jina.ai/${encodeURIComponent(query)}`;
+                debugInfo += `Fetching: ${url}\n`;
 
-            const text = await response.text();
+                const response = await fetch(url, {
+                    signal: controller.signal,
+                    headers: { 'Accept': 'application/json' }
+                });
+                clearTimeout(timeout);
 
-            if (!text || text.trim().length === 0) {
-                return JSON.stringify({ result: `No results found for "${query}".` });
+                debugInfo += `Status: ${response.status}\n`;
+                debugInfo += `OK: ${response.ok}\n`;
+
+                const text = await response.text();
+                debugInfo += `Response length: ${text.length}\n`;
+                debugInfo += `Preview: ${text.substring(0, 300)}`;
+
+                return JSON.stringify({ result: debugInfo });
+
+            } catch (fetchError) {
+                clearTimeout(timeout);
+                debugInfo += `Fetch error type: ${fetchError.name}\n`;
+                debugInfo += `Fetch error message: ${fetchError.message}\n`;
+                return JSON.stringify({ result: debugInfo });
             }
-
-            // Return first 1500 chars as result
-            return JSON.stringify({ result: text.substring(0, 1500) });
 
         } catch (e) {
-            if (e.name === 'AbortError') {
-                return JSON.stringify({ error: "Search timed out." });
-            }
-            return JSON.stringify({ error: `Search failed: ${e.message}` });
+            return JSON.stringify({ result: `Parse error: ${e.name}: ${e.message}` });
         }
     };
 </script>
